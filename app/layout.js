@@ -1,4 +1,3 @@
-import React from "react"
 import './globals.css'
 import { Inter } from 'next/font/google'
 
@@ -9,7 +8,7 @@ export const metadata = {
   description: 'Personalised email outreach to every college tennis coach',
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className={inter.className} style={{background:'#020c1b', minHeight:'100vh'}}>{children}</body>
