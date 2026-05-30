@@ -1,13 +1,13 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 const TABS = [
-  { label: 'Profile', icon: '◈' },
-  { label: 'Tennis', icon: '◎' },
-  { label: 'Media', icon: '◇' },
-  { label: 'Generate', icon: '⟡' },
-  { label: 'Send', icon: '◈' },
-  { label: 'Dashboard', icon: '▦' },
+  { label: 'Profile', num: '01' },
+  { label: 'Tennis', num: '02' },
+  { label: 'Media', num: '03' },
+  { label: 'Generate', num: '04' },
+  { label: 'Send', num: '05' },
+  { label: 'Dashboard', num: '06' },
 ]
 
 const glass = {
@@ -15,13 +15,6 @@ const glass = {
   backdropFilter: 'blur(24px)',
   WebkitBackdropFilter: 'blur(24px)',
   border: '1px solid rgba(255,255,255,0.08)',
-}
-
-const glassBlue = {
-  background: 'rgba(59,130,246,0.08)',
-  backdropFilter: 'blur(24px)',
-  WebkitBackdropFilter: 'blur(24px)',
-  border: '1px solid rgba(59,130,246,0.2)',
 }
 
 const inputStyle = {
@@ -35,7 +28,77 @@ const inputStyle = {
   color: 'white',
   outline: 'none',
   fontFamily: 'inherit',
-  transition: 'all 0.2s',
+  transition: 'border 0.2s, background 0.2s',
+}
+
+const labelStyle = {
+  display: 'block',
+  fontSize: '11px',
+  fontWeight: '600',
+  color: 'rgba(147,197,253,0.6)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+  marginBottom: '8px',
+}
+
+const btnPrimary = {
+  background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+  border: '1px solid rgba(59,130,246,0.4)',
+  color: 'white',
+  padding: '11px 24px',
+  borderRadius: '12px',
+  fontSize: '14px',
+  fontWeight: '600',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '8px',
+}
+
+const btnGhost = {
+  background: 'rgba(255,255,255,0.04)',
+  border: '1px solid rgba(255,255,255,0.08)',
+  color: 'rgba(255,255,255,0.5)',
+  padding: '11px 20px',
+  borderRadius: '12px',
+  fontSize: '14px',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+}
+
+const btnGreen = {
+  background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+  border: '1px solid rgba(5,150,105,0.4)',
+  color: 'white',
+  padding: '11px 24px',
+  borderRadius: '12px',
+  fontSize: '14px',
+  fontWeight: '600',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '8px',
+}
+
+// Separate form component to prevent re-render typing issue
+function AthleteForm({ athlete, onSave }) {
+  const [local, setLocal] = useState(athlete)
+
+  useEffect(() => { setLocal(athlete) }, [])
+
+  function f(id) {
+    return {
+      value: local[id] || '',
+      onChange: (e) => setLocal(p => ({ ...p, [id]: e.target.value })),
+      onBlur: () => onSave(local),
+      style: inputStyle,
+      onFocus: (e) => { e.target.style.border = '1px solid rgba(59,130,246,0.5)'; e.target.style.background = 'rgba(59,130,246,0.06)' },
+    }
+  }
+
+  return { local, f, setLocal, save: () => onSave(local) }
 }
 
 export default function Home() {
@@ -58,9 +121,37 @@ export default function Home() {
   const [fromName, setFromName] = useState('')
   const [selectedCoach, setSelectedCoach] = useState(null)
 
-  useEffect(() => { const s = localStorage.getItem('athlete'); if(s) setAthlete(JSON.parse(s)) }, [])
-  useEffect(() => { localStorage.setItem('athlete', JSON.stringify(athlete)) }, [athlete])
+  // Use refs for inputs to avoid re-render on every keystroke
+  const refs = {}
+  const fields = ['name','grad_year','location','gpa','sat','high_school','academy','major','height','phone','email','utr','wtn','singles','doubles','national_rank','sectional_rank','notable_wins','playing_style','strengths','highlight_url','match_url','resume_url','tournaments']
+  fields.forEach(f => { refs[f] = useRef(null) })
+
+  useEffect(() => {
+    const saved = localStorage.getItem('athlete')
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      setAthlete(parsed)
+      // Set ref values after mount
+      setTimeout(() => {
+        fields.forEach(f => {
+          if (refs[f].current) refs[f].current.value = parsed[f] || ''
+        })
+      }, 50)
+    }
+  }, [])
+
   useEffect(() => { if(tab>=3) fetchCoaches() }, [tab, page])
+
+  function saveAthlete() {
+    const updated = { ...athlete }
+    fields.forEach(f => {
+      if (refs[f].current) updated[f] = refs[f].current.value
+    })
+    updated.hand = athlete.hand
+    setAthlete(updated)
+    localStorage.setItem('athlete', JSON.stringify(updated))
+    return updated
+  }
 
   async function fetchCoaches() {
     try {
@@ -71,9 +162,8 @@ export default function Home() {
     } catch(e) {}
   }
 
-  function set(f,v) { setAthlete(p=>({...p,[f]:v})) }
-
   async function generateAll() {
+    const a = saveAthlete()
     setGenerating(true)
     setGenLog(['Starting generation...'])
     let p=1, tot=0
@@ -81,9 +171,9 @@ export default function Home() {
       const res = await fetch(`/api/coaches?page=${p}`)
       const data = await res.json()
       const batch = (data.coaches||[]).filter(c=>!c.email_generated)
-      if(batch.length===0){setGenLog(prev=>[...prev,'✓ All emails generated!']);break}
+      if(batch.length===0){setGenLog(prev=>[...prev,'✓ All done!']);break}
       setGenLog(prev=>[...prev,`Batch ${p}: writing ${batch.length} emails...`])
-      const r = await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({athlete,coachIds:batch.map(c=>c.id)})})
+      const r = await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({athlete:a,coachIds:batch.map(c=>c.id)})})
       const d = await r.json()
       tot+=d.generated||0
       setGenLog(prev=>[...prev,`✓ Batch ${p} done — ${d.generated} generated`])
@@ -104,126 +194,57 @@ export default function Home() {
     fetchCoaches()
   }
 
-  const Field = ({id, label, placeholder, full, type='text'}) => (
+  const inp = (id, label, placeholder, full) => (
     <div style={{gridColumn: full ? 'span 2' : 'span 1'}}>
-      <label style={{display:'block',fontSize:'11px',fontWeight:'600',color:'rgba(147,197,253,0.6)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:'8px'}}>{label}</label>
-      <input
-        type={type}
-        style={inputStyle}
-        placeholder={placeholder}
-        value={athlete[id]||''}
-        onChange={e=>set(id,e.target.value)}
+      <label style={labelStyle}>{label}</label>
+      <input ref={refs[id]} defaultValue={athlete[id]||''} placeholder={placeholder} style={inputStyle}
         onFocus={e=>{e.target.style.border='1px solid rgba(59,130,246,0.5)';e.target.style.background='rgba(59,130,246,0.06)'}}
         onBlur={e=>{e.target.style.border='1px solid rgba(255,255,255,0.08)';e.target.style.background='rgba(255,255,255,0.04)'}}
       />
     </div>
   )
 
-  const TextArea = ({id, label, placeholder}) => (
+  const ta = (id, label, placeholder) => (
     <div style={{gridColumn:'span 2'}}>
-      <label style={{display:'block',fontSize:'11px',fontWeight:'600',color:'rgba(147,197,253,0.6)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:'8px'}}>{label}</label>
-      <textarea
-        style={{...inputStyle,height:'88px',lineHeight:'1.6',resize:'none'}}
-        placeholder={placeholder}
-        value={athlete[id]||''}
-        onChange={e=>set(id,e.target.value)}
+      <label style={labelStyle}>{label}</label>
+      <textarea ref={refs[id]} defaultValue={athlete[id]||''} placeholder={placeholder}
+        style={{...inputStyle, height:'88px', lineHeight:'1.6', resize:'none'}}
         onFocus={e=>{e.target.style.border='1px solid rgba(59,130,246,0.5)';e.target.style.background='rgba(59,130,246,0.06)'}}
         onBlur={e=>{e.target.style.border='1px solid rgba(255,255,255,0.08)';e.target.style.background='rgba(255,255,255,0.04)'}}
       />
     </div>
   )
-
-  const btnPrimary = {
-    background:'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
-    border:'1px solid rgba(59,130,246,0.4)',
-    color:'white',
-    padding:'11px 24px',
-    borderRadius:'12px',
-    fontSize:'14px',
-    fontWeight:'600',
-    cursor:'pointer',
-    fontFamily:'inherit',
-    display:'flex',
-    alignItems:'center',
-    gap:'8px',
-    transition:'all 0.2s',
-    letterSpacing:'0.01em',
-  }
-
-  const btnGhost = {
-    background:'rgba(255,255,255,0.04)',
-    border:'1px solid rgba(255,255,255,0.08)',
-    color:'rgba(255,255,255,0.5)',
-    padding:'11px 20px',
-    borderRadius:'12px',
-    fontSize:'14px',
-    fontWeight:'500',
-    cursor:'pointer',
-    fontFamily:'inherit',
-    transition:'all 0.2s',
-  }
-
-  const btnGreen = {
-    background:'linear-gradient(135deg, #059669 0%, #047857 100%)',
-    border:'1px solid rgba(5,150,105,0.4)',
-    color:'white',
-    padding:'11px 24px',
-    borderRadius:'12px',
-    fontSize:'14px',
-    fontWeight:'600',
-    cursor:'pointer',
-    fontFamily:'inherit',
-    display:'flex',
-    alignItems:'center',
-    gap:'8px',
-    transition:'all 0.2s',
-  }
 
   return (
-    <div style={{minHeight:'100vh',background:'linear-gradient(135deg, #020c1b 0%, #041428 40%, #061c36 70%, #041020 100%)',padding:'0 0 60px 0'}}>
-
-      {/* Background orbs */}
+    <div style={{minHeight:'100vh', background:'linear-gradient(135deg, #020c1b 0%, #041428 40%, #061c36 70%, #041020 100%)', padding:'0 0 60px 0'}}>
       <div style={{position:'fixed',inset:0,overflow:'hidden',pointerEvents:'none',zIndex:0}}>
         <div style={{position:'absolute',top:'-15%',left:'-8%',width:'700px',height:'700px',borderRadius:'50%',background:'radial-gradient(circle, rgba(30,64,175,0.18), transparent 65%)'}}/>
         <div style={{position:'absolute',bottom:'-10%',right:'-5%',width:'600px',height:'600px',borderRadius:'50%',background:'radial-gradient(circle, rgba(29,78,216,0.12), transparent 65%)'}}/>
-        <div style={{position:'absolute',top:'45%',left:'55%',width:'400px',height:'400px',borderRadius:'50%',background:'radial-gradient(circle, rgba(59,130,246,0.07), transparent 65%)'}}/>
       </div>
 
       <div style={{position:'relative',zIndex:1,maxWidth:'960px',margin:'0 auto',padding:'48px 32px 0'}}>
-
-        {/* Header */}
         <div style={{marginBottom:'40px'}}>
           <div style={{display:'flex',alignItems:'center',gap:'14px',marginBottom:'10px'}}>
-            <div style={{width:'40px',height:'40px',borderRadius:'12px',background:'linear-gradient(135deg, #3b82f6, #1d4ed8)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'18px',boxShadow:'0 8px 32px rgba(59,130,246,0.3)'}}>⚾</div>
+            <div style={{width:'40px',height:'40px',borderRadius:'12px',background:'linear-gradient(135deg, #3b82f6, #1d4ed8)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'20px',boxShadow:'0 8px 32px rgba(59,130,246,0.3)'}}>🎾</div>
             <div>
               <h1 style={{fontSize:'26px',fontWeight:'700',letterSpacing:'-0.02em',color:'white'}}>Tennis Recruiting Hub</h1>
-              <p style={{fontSize:'13px',color:'rgba(147,197,253,0.45)',marginTop:'2px',fontWeight:'400'}}>Fill in your profile · Generate personalised emails · Send to every coach</p>
+              <p style={{fontSize:'13px',color:'rgba(147,197,253,0.45)',marginTop:'2px'}}>Fill in your profile · Generate personalised emails · Send to every coach</p>
             </div>
           </div>
         </div>
 
-        {/* Tab Nav — glass pill */}
+        {/* Tab Nav */}
         <div style={{...glass, borderRadius:'20px', padding:'6px', display:'flex', gap:'4px', marginBottom:'28px', boxShadow:'0 8px 32px rgba(0,0,0,0.3)'}}>
           {TABS.map((t,i)=>(
-            <button key={i} onClick={()=>setTab(i)} style={{
-              flex:1,
-              padding:'12px 8px',
-              borderRadius:'14px',
+            <button key={i} onClick={()=>{ saveAthlete(); setTab(i) }} style={{
+              flex:1, padding:'12px 8px', borderRadius:'14px', cursor:'pointer', fontFamily:'inherit', transition:'all 0.2s',
               border: tab===i ? '1px solid rgba(59,130,246,0.35)' : '1px solid transparent',
               background: tab===i ? 'linear-gradient(135deg, rgba(59,130,246,0.2), rgba(29,78,216,0.15))' : 'transparent',
               color: tab===i ? '#93c5fd' : 'rgba(148,163,184,0.4)',
-              fontSize:'12px',
-              fontWeight: tab===i ? '600' : '400',
-              cursor:'pointer',
-              fontFamily:'inherit',
-              transition:'all 0.2s',
-              display:'flex',
-              flexDirection:'column',
-              alignItems:'center',
-              gap:'4px',
-              backdropFilter: tab===i ? 'blur(12px)' : 'none',
+              fontSize:'12px', fontWeight: tab===i ? '600' : '400',
+              display:'flex', flexDirection:'column', alignItems:'center', gap:'4px',
             }}>
-              <span style={{fontSize:'9px',color:tab===i?'rgba(147,197,253,0.4)':'rgba(100,116,139,0.3)',fontWeight:'500',letterSpacing:'0.06em'}}>{String(i+1).padStart(2,'0')}</span>
+              <span style={{fontSize:'9px',color:tab===i?'rgba(147,197,253,0.4)':'rgba(100,116,139,0.3)',fontWeight:'500',letterSpacing:'0.06em'}}>{t.num}</span>
               {t.label}
             </button>
           ))}
@@ -236,31 +257,31 @@ export default function Home() {
           {tab===0&&<>
             <div style={{marginBottom:'28px'}}>
               <h2 style={{fontSize:'18px',fontWeight:'600',letterSpacing:'-0.01em',marginBottom:'6px'}}>Athlete profile</h2>
-              <p style={{fontSize:'13px',color:'rgba(147,197,253,0.4)',fontWeight:'400'}}>Your personal information — automatically included in every email</p>
+              <p style={{fontSize:'13px',color:'rgba(147,197,253,0.4)'}}>Your personal info — automatically included in every email</p>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px'}}>
-              <Field id="name" label="Full name" placeholder="e.g. Amara Eddine" />
-              <Field id="grad_year" label="Graduation year" placeholder="e.g. 2027" />
-              <Field id="location" label="City / State" placeholder="e.g. Brooklyn, NY" />
-              <Field id="gpa" label="GPA" placeholder="e.g. 3.9" />
-              <Field id="sat" label="SAT / ACT" placeholder="e.g. 1550 SAT" />
-              <Field id="major" label="Intended major" placeholder="e.g. Computer Science" />
-              <Field id="high_school" label="Current school" placeholder="e.g. Millburn HS" />
-              <Field id="academy" label="Club / Academy" placeholder="e.g. USTA Training Center" />
-              <Field id="height" label="Height" placeholder="e.g. 6'1&quot;" />
+              {inp('name','Full name','e.g. Amara Eddine')}
+              {inp('grad_year','Graduation year','e.g. 2027')}
+              {inp('location','City / State','e.g. Brooklyn, NY')}
+              {inp('gpa','GPA','e.g. 3.9')}
+              {inp('sat','SAT / ACT','e.g. 1550 SAT')}
+              {inp('major','Intended major','e.g. Computer Science')}
+              {inp('high_school','Current school','e.g. Millburn HS')}
+              {inp('academy','Club / Academy','e.g. USTA Training Center')}
+              {inp('height','Height',"e.g. 6'1\"")}
               <div>
-                <label style={{display:'block',fontSize:'11px',fontWeight:'600',color:'rgba(147,197,253,0.6)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:'8px'}}>Dominant hand</label>
-                <select style={{...inputStyle,colorScheme:'dark'}} value={athlete.hand||''} onChange={e=>set('hand',e.target.value)}>
+                <label style={labelStyle}>Dominant hand</label>
+                <select style={{...inputStyle,colorScheme:'dark'}} value={athlete.hand||''} onChange={e=>setAthlete(p=>({...p,hand:e.target.value}))}>
                   <option value="" style={{background:'#061c36'}}>Select...</option>
                   <option style={{background:'#061c36'}}>Right-handed</option>
                   <option style={{background:'#061c36'}}>Left-handed</option>
                 </select>
               </div>
-              <Field id="phone" label="Phone number" placeholder="e.g. (201) 555-0123" />
-              <Field id="email" label="Your email" placeholder="e.g. amara@email.com" />
+              {inp('phone','Phone number','e.g. (201) 555-0123')}
+              {inp('email','Your email','e.g. amara@email.com')}
             </div>
             <div style={{display:'flex',justifyContent:'flex-end',marginTop:'28px'}}>
-              <button style={btnPrimary} onClick={()=>setTab(1)}>Next: Tennis stats →</button>
+              <button style={btnPrimary} onClick={()=>{saveAthlete();setTab(1)}}>Next: Tennis stats →</button>
             </div>
           </>}
 
@@ -271,19 +292,19 @@ export default function Home() {
               <p style={{fontSize:'13px',color:'rgba(147,197,253,0.4)'}}>The numbers and results coaches look at first</p>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px'}}>
-              <Field id="utr" label="UTR" placeholder="e.g. 10.8" />
-              <Field id="wtn" label="WTN" placeholder="e.g. 14.2" />
-              <Field id="singles" label="Singles record" placeholder="e.g. 38-12 (2024 season)" />
-              <Field id="doubles" label="Doubles record" placeholder="e.g. 22-8" />
-              <Field id="national_rank" label="National ranking" placeholder="e.g. #45 USTA 18s" />
-              <Field id="sectional_rank" label="Sectional ranking" placeholder="e.g. #3 Eastern" />
-              <TextArea id="notable_wins" label="Notable wins & tournament results" placeholder="e.g. Semifinalist at 2024 USTA National Clay Courts; defeated 3 players ranked top-20 nationally..." />
-              <TextArea id="playing_style" label="Playing style — be specific" placeholder="e.g. Aggressive baseliner with heavy topspin forehand. Strong server who attacks short balls. Competes well in tight third sets..." />
-              <TextArea id="strengths" label="Key strengths" placeholder="e.g. Consistency, first-serve percentage, two-handed backhand, mental toughness under pressure..." />
+              {inp('utr','UTR','e.g. 10.8')}
+              {inp('wtn','WTN','e.g. 14.2')}
+              {inp('singles','Singles record','e.g. 38-12 (2024)')}
+              {inp('doubles','Doubles record','e.g. 22-8')}
+              {inp('national_rank','National ranking','e.g. #45 USTA 18s')}
+              {inp('sectional_rank','Sectional ranking','e.g. #3 Eastern')}
+              {ta('notable_wins','Notable wins & results','e.g. Semifinalist USTA National Clay Courts...')}
+              {ta('playing_style','Playing style','e.g. Aggressive baseliner, heavy topspin forehand...')}
+              {ta('strengths','Key strengths','e.g. Consistency, first-serve %, mental toughness...')}
             </div>
             <div style={{display:'flex',justifyContent:'space-between',marginTop:'28px'}}>
-              <button style={btnGhost} onClick={()=>setTab(0)}>← Back</button>
-              <button style={btnPrimary} onClick={()=>setTab(2)}>Next: Media →</button>
+              <button style={btnGhost} onClick={()=>{saveAthlete();setTab(0)}}>← Back</button>
+              <button style={btnPrimary} onClick={()=>{saveAthlete();setTab(2)}}>Next: Media →</button>
             </div>
           </>}
 
@@ -291,20 +312,17 @@ export default function Home() {
           {tab===2&&<>
             <div style={{marginBottom:'28px'}}>
               <h2 style={{fontSize:'18px',fontWeight:'600',letterSpacing:'-0.01em',marginBottom:'6px'}}>Media & documents</h2>
-              <p style={{fontSize:'13px',color:'rgba(147,197,253,0.4)'}}>Links that get included in every email you send to coaches</p>
-            </div>
-            <div style={{...glassBlue,borderRadius:'14px',padding:'14px 18px',marginBottom:'24px',fontSize:'13px',color:'rgba(147,197,253,0.7)'}}>
-              Host your videos on YouTube or Vimeo and paste the links below. Coaches click directly from the email.
+              <p style={{fontSize:'13px',color:'rgba(147,197,253,0.4)'}}>Links included in every email you send to coaches</p>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px'}}>
-              <Field id="highlight_url" label="Highlight video URL ★" placeholder="https://youtube.com/watch?v=..." full />
-              <Field id="match_url" label="Match footage URL" placeholder="https://youtube.com/..." />
-              <Field id="resume_url" label="Resume / profile URL" placeholder="https://drive.google.com/..." />
-              <TextArea id="tournaments" label="Upcoming tournaments" placeholder={"- June 14: USTA Sectional (NJ)\n- Aug 3-9: USTA Nationals (Kalamazoo, MI)"} />
+              {inp('highlight_url','Highlight video URL ★','https://youtube.com/watch?v=...',true)}
+              {inp('match_url','Match footage URL','https://youtube.com/...')}
+              {inp('resume_url','Resume URL','https://drive.google.com/...')}
+              {ta('tournaments','Upcoming tournaments','- June 14: USTA Sectional (NJ)\n- Aug 3-9: USTA Nationals (Kalamazoo, MI)')}
             </div>
             <div style={{display:'flex',justifyContent:'space-between',marginTop:'28px'}}>
-              <button style={btnGhost} onClick={()=>setTab(1)}>← Back</button>
-              <button style={btnPrimary} onClick={()=>setTab(3)}>Next: Generate →</button>
+              <button style={btnGhost} onClick={()=>{saveAthlete();setTab(1)}}>← Back</button>
+              <button style={btnPrimary} onClick={()=>{saveAthlete();setTab(3)}}>Next: Generate →</button>
             </div>
           </>}
 
@@ -312,7 +330,7 @@ export default function Home() {
           {tab===3&&<>
             <div style={{marginBottom:'28px'}}>
               <h2 style={{fontSize:'18px',fontWeight:'600',letterSpacing:'-0.01em',marginBottom:'6px'}}>Generate emails</h2>
-              <p style={{fontSize:'13px',color:'rgba(147,197,253,0.4)'}}>{total.toLocaleString()} coaches in database — Claude writes a unique personalised email for each one</p>
+              <p style={{fontSize:'13px',color:'rgba(147,197,253,0.4)'}}>{total.toLocaleString()} coaches in database</p>
             </div>
             <div style={{display:'flex',gap:'12px',marginBottom:'24px'}}>
               <button onClick={generateAll} disabled={generating} style={{...btnPrimary,opacity:generating?0.6:1}}>
@@ -372,17 +390,17 @@ export default function Home() {
               <p style={{fontSize:'13px',color:'rgba(147,197,253,0.4)'}}>Sends all generated emails in batches of 50 via Resend</p>
             </div>
             <div style={{background:'rgba(251,191,36,0.07)',border:'1px solid rgba(251,191,36,0.2)',borderRadius:'14px',padding:'14px 18px',fontSize:'13px',color:'rgba(251,191,36,0.75)',marginBottom:'24px'}}>
-              Requires a Resend account with a verified sending domain. Free tier includes 3,000 emails/month.
+              Requires a Resend account with a verified sending domain. Free tier = 3,000 emails/month.
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px',marginBottom:'24px'}}>
               <div>
-                <label style={{display:'block',fontSize:'11px',fontWeight:'600',color:'rgba(147,197,253,0.6)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:'8px'}}>Your name</label>
+                <label style={labelStyle}>Your name</label>
                 <input style={inputStyle} placeholder="e.g. Amara Eddine" value={fromName} onChange={e=>setFromName(e.target.value)}
                   onFocus={e=>{e.target.style.border='1px solid rgba(59,130,246,0.5)';e.target.style.background='rgba(59,130,246,0.06)'}}
                   onBlur={e=>{e.target.style.border='1px solid rgba(255,255,255,0.08)';e.target.style.background='rgba(255,255,255,0.04)'}}/>
               </div>
               <div>
-                <label style={{display:'block',fontSize:'11px',fontWeight:'600',color:'rgba(147,197,253,0.6)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:'8px'}}>Send from email</label>
+                <label style={labelStyle}>Send from email</label>
                 <input style={inputStyle} placeholder="you@yourdomain.com" value={fromEmail} onChange={e=>setFromEmail(e.target.value)}
                   onFocus={e=>{e.target.style.border='1px solid rgba(59,130,246,0.5)';e.target.style.background='rgba(59,130,246,0.06)'}}
                   onBlur={e=>{e.target.style.border='1px solid rgba(255,255,255,0.08)';e.target.style.background='rgba(255,255,255,0.04)'}}/>
@@ -403,7 +421,7 @@ export default function Home() {
           {tab===5&&<>
             <div style={{marginBottom:'28px'}}>
               <h2 style={{fontSize:'18px',fontWeight:'600',letterSpacing:'-0.01em',marginBottom:'6px'}}>Dashboard</h2>
-              <p style={{fontSize:'13px',color:'rgba(147,197,253,0.4)'}}>Live stats pulled directly from your Supabase database</p>
+              <p style={{fontSize:'13px',color:'rgba(147,197,253,0.4)'}}>Live stats from your Supabase database</p>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'16px',marginBottom:'32px'}}>
               {[
@@ -411,7 +429,7 @@ export default function Home() {
                 {label:'Emails generated',val:coaches.filter(c=>c.email_generated).length,bg:'rgba(74,222,128,0.08)',border:'rgba(74,222,128,0.2)',color:'#4ade80'},
                 {label:'Emails sent',val:coaches.filter(c=>c.email_sent).length,bg:'rgba(168,85,247,0.08)',border:'rgba(168,85,247,0.2)',color:'#c084fc'},
               ].map((s,i)=>(
-                <div key={i} style={{background:s.bg,border:`1px solid ${s.border}`,borderRadius:'20px',padding:'24px',textAlign:'center',backdropFilter:'blur(12px)'}}>
+                <div key={i} style={{background:s.bg,border:`1px solid ${s.border}`,borderRadius:'20px',padding:'24px',textAlign:'center'}}>
                   <div style={{fontSize:'36px',fontWeight:'700',color:s.color,letterSpacing:'-0.02em',lineHeight:1}}>{s.val.toLocaleString()}</div>
                   <div style={{fontSize:'12px',color:'rgba(255,255,255,0.3)',marginTop:'8px',fontWeight:'500'}}>{s.label}</div>
                 </div>
@@ -439,11 +457,7 @@ export default function Home() {
 
         </div>
       </div>
-
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        * { box-sizing: border-box; }
-      `}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }
