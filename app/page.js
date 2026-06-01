@@ -82,23 +82,140 @@ const btnGreen = {
   gap: '8px',
 }
 
-// Separate form component to prevent re-render typing issue
-function AthleteForm({ athlete, onSave }) {
-  const [local, setLocal] = useState(athlete)
+function InterestScore({ coach }) {
+  let score = 0
+  let factors = []
+  if (coach.email_generated) { score += 20; factors.push('Email written') }
+  if (coach.email_sent) { score += 30; factors.push('Email sent') }
+  if (coach.email_opened) { score += 30; factors.push('Opened') }
+  if (coach.replied) { score += 20; factors.push('Replied') }
 
-  useEffect(() => { setLocal(athlete) }, [])
+  const color = score >= 70 ? '#4ade80' : score >= 40 ? '#fbbf24' : score >= 20 ? '#60a5fa' : 'rgba(255,255,255,0.2)'
+  const bg = score >= 70 ? 'rgba(74,222,128,0.1)' : score >= 40 ? 'rgba(251,191,36,0.1)' : score >= 20 ? 'rgba(96,165,250,0.1)' : 'rgba(255,255,255,0.04)'
+  const border = score >= 70 ? 'rgba(74,222,128,0.25)' : score >= 40 ? 'rgba(251,191,36,0.25)' : score >= 20 ? 'rgba(96,165,250,0.25)' : 'rgba(255,255,255,0.08)'
 
-  function f(id) {
-    return {
-      value: local[id] || '',
-      onChange: (e) => setLocal(p => ({ ...p, [id]: e.target.value })),
-      onBlur: () => onSave(local),
-      style: inputStyle,
-      onFocus: (e) => { e.target.style.border = '1px solid rgba(59,130,246,0.5)'; e.target.style.background = 'rgba(59,130,246,0.06)' },
-    }
+  return (
+    <div style={{background:bg, border:`1px solid ${border}`, borderRadius:'16px', padding:'16px', marginBottom:'16px'}}>
+      <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'10px'}}>
+        <span style={{fontSize:'12px', fontWeight:'600', color:'rgba(147,197,253,0.6)', textTransform:'uppercase', letterSpacing:'0.08em'}}>Interest Score</span>
+        <span style={{fontSize:'24px', fontWeight:'700', color}}>{score}</span>
+      </div>
+      <div style={{height:'6px', background:'rgba(255,255,255,0.06)', borderRadius:'3px', marginBottom:'10px', overflow:'hidden'}}>
+        <div style={{height:'100%', width:`${score}%`, background:`linear-gradient(90deg, ${color}, ${color}aa)`, borderRadius:'3px', transition:'width 0.5s ease'}}/>
+      </div>
+      <div style={{display:'flex', gap:'6px', flexWrap:'wrap'}}>
+        {factors.map((f,i) => (
+          <span key={i} style={{fontSize:'11px', padding:'3px 8px', borderRadius:'20px', background:'rgba(255,255,255,0.06)', color:'rgba(255,255,255,0.5)'}}>{f}</span>
+        ))}
+        {factors.length === 0 && <span style={{fontSize:'11px', color:'rgba(255,255,255,0.2)'}}>No activity yet</span>}
+      </div>
+    </div>
+  )
+}
+
+function CoachDrawer({ coach, onClose, onUpdate }) {
+  const [marking, setMarking] = useState(false)
+
+  async function markReplied() {
+    setMarking(true)
+    try {
+      await fetch('/api/coaches', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: coach.id, replied: true })
+      })
+      onUpdate({ ...coach, replied: true })
+    } catch(e) {}
+    setMarking(false)
   }
 
-  return { local, f, setLocal, save: () => onSave(local) }
+  return (
+    <div style={{position:'fixed', inset:0, zIndex:50, display:'flex'}}>
+      {/* Backdrop */}
+      <div style={{position:'absolute', inset:0, background:'rgba(0,0,0,0.6)', backdropFilter:'blur(4px)'}} onClick={onClose}/>
+
+      {/* Drawer */}
+      <div style={{
+        position:'absolute', right:0, top:0, bottom:0, width:'480px',
+        background:'linear-gradient(135deg, #061c36, #041428)',
+        border:'1px solid rgba(255,255,255,0.08)',
+        boxShadow:'-20px 0 60px rgba(0,0,0,0.5)',
+        overflowY:'auto', padding:'28px',
+        animation:'slideIn 0.25s ease'
+      }}>
+        {/* Header */}
+        <div style={{display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'24px'}}>
+          <div>
+            <div style={{fontSize:'20px', fontWeight:'700', color:'white', marginBottom:'4px'}}>{coach.coach_name}</div>
+            <div style={{fontSize:'14px', color:'rgba(147,197,253,0.5)'}}>{coach.school_name}</div>
+            <div style={{fontSize:'12px', color:'rgba(255,255,255,0.25)', marginTop:'2px'}}>{coach.division} · {coach.notes}</div>
+          </div>
+          <button onClick={onClose} style={{...btnGhost, padding:'8px 12px', fontSize:'16px'}}>✕</button>
+        </div>
+
+        {/* Interest score */}
+        <InterestScore coach={coach} />
+
+        {/* Status badges */}
+        <div style={{display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'24px'}}>
+          {coach.email_generated && <span style={{fontSize:'12px', padding:'5px 12px', borderRadius:'20px', background:'rgba(59,130,246,0.1)', color:'#60a5fa', border:'1px solid rgba(59,130,246,0.2)', fontWeight:'500'}}>✓ Email generated</span>}
+          {coach.email_sent && <span style={{fontSize:'12px', padding:'5px 12px', borderRadius:'20px', background:'rgba(74,222,128,0.1)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.2)', fontWeight:'500'}}>✓ Email sent</span>}
+          {coach.replied && <span style={{fontSize:'12px', padding:'5px 12px', borderRadius:'20px', background:'rgba(168,85,247,0.1)', color:'#c084fc', border:'1px solid rgba(168,85,247,0.2)', fontWeight:'500'}}>✓ Replied</span>}
+        </div>
+
+        {/* Coach details */}
+        <div style={{...glass, borderRadius:'16px', padding:'16px', marginBottom:'20px'}}>
+          <div style={{fontSize:'11px', fontWeight:'600', color:'rgba(147,197,253,0.5)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'12px'}}>Contact info</div>
+          <div style={{display:'flex', flexDirection:'column', gap:'8px'}}>
+            <div style={{display:'flex', justifyContent:'space-between'}}>
+              <span style={{fontSize:'13px', color:'rgba(255,255,255,0.4)'}}>Email</span>
+              <span style={{fontSize:'13px', color:'rgba(255,255,255,0.8)', fontWeight:'500'}}>{coach.email}</span>
+            </div>
+            <div style={{display:'flex', justifyContent:'space-between'}}>
+              <span style={{fontSize:'13px', color:'rgba(255,255,255,0.4)'}}>School</span>
+              <span style={{fontSize:'13px', color:'rgba(255,255,255,0.8)', fontWeight:'500'}}>{coach.school_name}</span>
+            </div>
+            <div style={{display:'flex', justifyContent:'space-between'}}>
+              <span style={{fontSize:'13px', color:'rgba(255,255,255,0.4)'}}>Division</span>
+              <span style={{fontSize:'13px', color:'rgba(255,255,255,0.8)', fontWeight:'500'}}>{coach.division}</span>
+            </div>
+            <div style={{display:'flex', justifyContent:'space-between'}}>
+              <span style={{fontSize:'13px', color:'rgba(255,255,255,0.4)'}}>Role</span>
+              <span style={{fontSize:'13px', color:'rgba(255,255,255,0.8)', fontWeight:'500'}}>{coach.notes}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Generated email */}
+        {coach.email_generated && coach.email_subject && (
+          <div style={{marginBottom:'20px'}}>
+            <div style={{fontSize:'11px', fontWeight:'600', color:'rgba(147,197,253,0.5)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'12px'}}>Generated email</div>
+            <div style={{...glass, borderRadius:'16px', overflow:'hidden'}}>
+              <div style={{padding:'14px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)', background:'rgba(59,130,246,0.06)'}}>
+                <div style={{fontSize:'13px', fontWeight:'600', color:'rgba(255,255,255,0.9)'}}>{coach.email_subject}</div>
+                <div style={{fontSize:'11px', color:'rgba(147,197,253,0.4)', marginTop:'3px'}}>To: {coach.email}</div>
+              </div>
+              <div style={{padding:'16px', fontSize:'13px', color:'rgba(255,255,255,0.45)', lineHeight:'1.8', whiteSpace:'pre-wrap', maxHeight:'280px', overflowY:'auto'}}>{coach.email_body}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
+          {!coach.replied && coach.email_sent && (
+            <button onClick={markReplied} disabled={marking} style={{...btnPrimary, justifyContent:'center', opacity:marking?0.6:1}}>
+              {marking ? 'Saving...' : '✓ Mark as replied'}
+            </button>
+          )}
+          <a href={`mailto:${coach.email}`} style={{...btnGhost, textDecoration:'none', textAlign:'center', display:'block', padding:'11px 20px'}}>
+            Open in mail app
+          </a>
+        </div>
+      </div>
+
+      <style>{`@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }`}</style>
+    </div>
+  )
 }
 
 export default function Home() {
@@ -120,10 +237,10 @@ export default function Home() {
   const [fromEmail, setFromEmail] = useState('')
   const [fromName, setFromName] = useState('')
   const [selectedCoach, setSelectedCoach] = useState(null)
+  const [drawerCoach, setDrawerCoach] = useState(null)
 
-  // Use refs for inputs to avoid re-render on every keystroke
-  const refs = {}
   const fields = ['name','grad_year','location','gpa','sat','high_school','academy','major','height','phone','email','utr','wtn','singles','doubles','national_rank','sectional_rank','notable_wins','playing_style','strengths','highlight_url','match_url','resume_url','tournaments']
+  const refs = {}
   fields.forEach(f => { refs[f] = useRef(null) })
 
   useEffect(() => {
@@ -131,11 +248,8 @@ export default function Home() {
     if (saved) {
       const parsed = JSON.parse(saved)
       setAthlete(parsed)
-      // Set ref values after mount
       setTimeout(() => {
-        fields.forEach(f => {
-          if (refs[f].current) refs[f].current.value = parsed[f] || ''
-        })
+        fields.forEach(f => { if (refs[f].current) refs[f].current.value = parsed[f] || '' })
       }, 50)
     }
   }, [])
@@ -144,9 +258,7 @@ export default function Home() {
 
   function saveAthlete() {
     const updated = { ...athlete }
-    fields.forEach(f => {
-      if (refs[f].current) updated[f] = refs[f].current.value
-    })
+    fields.forEach(f => { if (refs[f].current) updated[f] = refs[f].current.value })
     updated.hand = athlete.hand
     setAthlete(updated)
     localStorage.setItem('athlete', JSON.stringify(updated))
@@ -194,6 +306,11 @@ export default function Home() {
     fetchCoaches()
   }
 
+  function updateCoachInList(updated) {
+    setCoaches(prev => prev.map(c => c.id === updated.id ? updated : c))
+    setDrawerCoach(updated)
+  }
+
   const inp = (id, label, placeholder, full) => (
     <div style={{gridColumn: full ? 'span 2' : 'span 1'}}>
       <label style={labelStyle}>{label}</label>
@@ -215,12 +332,42 @@ export default function Home() {
     </div>
   )
 
+  const CoachRow = ({ c }) => {
+    let score = 0
+    if (c.email_generated) score += 20
+    if (c.email_sent) score += 30
+    if (c.email_opened) score += 30
+    if (c.replied) score += 20
+    const scoreColor = score >= 70 ? '#4ade80' : score >= 40 ? '#fbbf24' : score >= 20 ? '#60a5fa' : 'rgba(255,255,255,0.15)'
+
+    return (
+      <div
+        style={{display:'grid',gridTemplateColumns:'2fr 2fr 1fr 80px 80px',padding:'14px 20px',borderTop:'1px solid rgba(255,255,255,0.04)',cursor:'pointer',transition:'background 0.15s'}}
+        onMouseEnter={e=>e.currentTarget.style.background='rgba(59,130,246,0.06)'}
+        onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+        onClick={()=>setDrawerCoach(c)}
+      >
+        <div style={{fontSize:'14px',fontWeight:'500',color:'rgba(255,255,255,0.8)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:'12px'}}>{c.school_name}</div>
+        <div style={{fontSize:'13px',color:'rgba(255,255,255,0.4)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:'12px'}}>{c.coach_name}</div>
+        <div style={{fontSize:'12px',color:'rgba(147,197,253,0.35)'}}>{c.division}</div>
+        <div>
+          {c.email_generated
+            ?<span style={{fontSize:'11px',padding:'3px 10px',borderRadius:'20px',background:'rgba(74,222,128,0.1)',color:'#4ade80',border:'1px solid rgba(74,222,128,0.2)',fontWeight:'500'}}>Ready</span>
+            :<span style={{fontSize:'11px',padding:'3px 10px',borderRadius:'20px',background:'rgba(255,255,255,0.04)',color:'rgba(255,255,255,0.25)'}}>Pending</span>}
+        </div>
+        <div style={{fontSize:'13px',fontWeight:'700',color:scoreColor,textAlign:'right'}}>{score > 0 ? score : '—'}</div>
+      </div>
+    )
+  }
+
   return (
     <div style={{minHeight:'100vh', background:'linear-gradient(135deg, #020c1b 0%, #041428 40%, #061c36 70%, #041020 100%)', padding:'0 0 60px 0'}}>
       <div style={{position:'fixed',inset:0,overflow:'hidden',pointerEvents:'none',zIndex:0}}>
         <div style={{position:'absolute',top:'-15%',left:'-8%',width:'700px',height:'700px',borderRadius:'50%',background:'radial-gradient(circle, rgba(30,64,175,0.18), transparent 65%)'}}/>
         <div style={{position:'absolute',bottom:'-10%',right:'-5%',width:'600px',height:'600px',borderRadius:'50%',background:'radial-gradient(circle, rgba(29,78,216,0.12), transparent 65%)'}}/>
       </div>
+
+      {drawerCoach && <CoachDrawer coach={drawerCoach} onClose={()=>setDrawerCoach(null)} onUpdate={updateCoachInList} />}
 
       <div style={{position:'relative',zIndex:1,maxWidth:'960px',margin:'0 auto',padding:'48px 32px 0'}}>
         <div style={{marginBottom:'40px'}}>
@@ -233,7 +380,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Tab Nav */}
         <div style={{...glass, borderRadius:'20px', padding:'6px', display:'flex', gap:'4px', marginBottom:'28px', boxShadow:'0 8px 32px rgba(0,0,0,0.3)'}}>
           {TABS.map((t,i)=>(
             <button key={i} onClick={()=>{ saveAthlete(); setTab(i) }} style={{
@@ -250,10 +396,8 @@ export default function Home() {
           ))}
         </div>
 
-        {/* Main card */}
         <div style={{...glass, borderRadius:'24px', padding:'36px', boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}}>
 
-          {/* PROFILE */}
           {tab===0&&<>
             <div style={{marginBottom:'28px'}}>
               <h2 style={{fontSize:'18px',fontWeight:'600',letterSpacing:'-0.01em',marginBottom:'6px'}}>Athlete profile</h2>
@@ -285,7 +429,6 @@ export default function Home() {
             </div>
           </>}
 
-          {/* TENNIS */}
           {tab===1&&<>
             <div style={{marginBottom:'28px'}}>
               <h2 style={{fontSize:'18px',fontWeight:'600',letterSpacing:'-0.01em',marginBottom:'6px'}}>Tennis stats</h2>
@@ -308,7 +451,6 @@ export default function Home() {
             </div>
           </>}
 
-          {/* MEDIA */}
           {tab===2&&<>
             <div style={{marginBottom:'28px'}}>
               <h2 style={{fontSize:'18px',fontWeight:'600',letterSpacing:'-0.01em',marginBottom:'6px'}}>Media & documents</h2>
@@ -318,7 +460,7 @@ export default function Home() {
               {inp('highlight_url','Highlight video URL ★','https://youtube.com/watch?v=...',true)}
               {inp('match_url','Match footage URL','https://youtube.com/...')}
               {inp('resume_url','Resume URL','https://drive.google.com/...')}
-              {ta('tournaments','Upcoming tournaments','- June 14: USTA Sectional (NJ)\n- Aug 3-9: USTA Nationals (Kalamazoo, MI)')}
+              {ta('tournaments','Upcoming tournaments','- June 14: USTA Sectional (NJ)\n- Aug 3-9: USTA Nationals')}
             </div>
             <div style={{display:'flex',justifyContent:'space-between',marginTop:'28px'}}>
               <button style={btnGhost} onClick={()=>{saveAthlete();setTab(1)}}>← Back</button>
@@ -326,11 +468,10 @@ export default function Home() {
             </div>
           </>}
 
-          {/* GENERATE */}
           {tab===3&&<>
             <div style={{marginBottom:'28px'}}>
               <h2 style={{fontSize:'18px',fontWeight:'600',letterSpacing:'-0.01em',marginBottom:'6px'}}>Generate emails</h2>
-              <p style={{fontSize:'13px',color:'rgba(147,197,253,0.4)'}}>{total.toLocaleString()} coaches in database</p>
+              <p style={{fontSize:'13px',color:'rgba(147,197,253,0.4)'}}>{total.toLocaleString()} coaches in database · Click a row to view profile & email</p>
             </div>
             <div style={{display:'flex',gap:'12px',marginBottom:'24px'}}>
               <button onClick={generateAll} disabled={generating} style={{...btnPrimary,opacity:generating?0.6:1}}>
@@ -345,35 +486,11 @@ export default function Home() {
               </div>
             )}
             <div style={{borderRadius:'16px',overflow:'hidden',border:'1px solid rgba(255,255,255,0.06)'}}>
-              <div style={{display:'grid',gridTemplateColumns:'2fr 2fr 1fr 1fr',padding:'12px 20px',background:'rgba(255,255,255,0.03)',fontSize:'11px',fontWeight:'600',color:'rgba(147,197,253,0.4)',textTransform:'uppercase',letterSpacing:'0.08em'}}>
-                <div>School</div><div>Coach</div><div>Division</div><div>Status</div>
+              <div style={{display:'grid',gridTemplateColumns:'2fr 2fr 1fr 80px 80px',padding:'12px 20px',background:'rgba(255,255,255,0.03)',fontSize:'11px',fontWeight:'600',color:'rgba(147,197,253,0.4)',textTransform:'uppercase',letterSpacing:'0.08em'}}>
+                <div>School</div><div>Coach</div><div>Division</div><div>Status</div><div style={{textAlign:'right'}}>Score</div>
               </div>
-              {coaches.map(c=>(
-                <div key={c.id}
-                  style={{display:'grid',gridTemplateColumns:'2fr 2fr 1fr 1fr',padding:'14px 20px',borderTop:'1px solid rgba(255,255,255,0.04)',cursor:'pointer',transition:'background 0.15s'}}
-                  onMouseEnter={e=>e.currentTarget.style.background='rgba(59,130,246,0.06)'}
-                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}
-                  onClick={()=>setSelectedCoach(selectedCoach?.id===c.id?null:c)}>
-                  <div style={{fontSize:'14px',fontWeight:'500',color:'rgba(255,255,255,0.8)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:'12px'}}>{c.school_name}</div>
-                  <div style={{fontSize:'13px',color:'rgba(255,255,255,0.4)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:'12px'}}>{c.coach_name}</div>
-                  <div style={{fontSize:'12px',color:'rgba(147,197,253,0.35)'}}>{c.division}</div>
-                  <div>
-                    {c.email_generated
-                      ?<span style={{fontSize:'11px',padding:'3px 10px',borderRadius:'20px',background:'rgba(74,222,128,0.1)',color:'#4ade80',border:'1px solid rgba(74,222,128,0.2)',fontWeight:'500'}}>Ready</span>
-                      :<span style={{fontSize:'11px',padding:'3px 10px',borderRadius:'20px',background:'rgba(255,255,255,0.04)',color:'rgba(255,255,255,0.25)'}}>Pending</span>}
-                  </div>
-                </div>
-              ))}
+              {coaches.map(c=><CoachRow key={c.id} c={c} />)}
             </div>
-            {selectedCoach?.email_generated&&(
-              <div style={{marginTop:'20px',borderRadius:'16px',overflow:'hidden',border:'1px solid rgba(59,130,246,0.2)'}}>
-                <div style={{padding:'14px 20px',background:'rgba(59,130,246,0.08)',borderBottom:'1px solid rgba(59,130,246,0.15)'}}>
-                  <div style={{fontSize:'14px',fontWeight:'500',color:'rgba(255,255,255,0.9)',marginBottom:'4px'}}>{selectedCoach.email_subject}</div>
-                  <div style={{fontSize:'12px',color:'rgba(147,197,253,0.4)'}}>To: {selectedCoach.coach_name} &lt;{selectedCoach.email}&gt;</div>
-                </div>
-                <div style={{padding:'16px 20px',fontSize:'13px',color:'rgba(255,255,255,0.45)',lineHeight:'1.8',whiteSpace:'pre-wrap',maxHeight:'260px',overflowY:'auto'}}>{selectedCoach.email_body}</div>
-              </div>
-            )}
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:'20px'}}>
               <span style={{fontSize:'12px',color:'rgba(255,255,255,0.2)'}}>Page {page} — {coaches.length} of {total.toLocaleString()}</span>
               <div style={{display:'flex',gap:'8px'}}>
@@ -383,14 +500,10 @@ export default function Home() {
             </div>
           </>}
 
-          {/* SEND */}
           {tab===4&&<>
             <div style={{marginBottom:'28px'}}>
               <h2 style={{fontSize:'18px',fontWeight:'600',letterSpacing:'-0.01em',marginBottom:'6px'}}>Send emails</h2>
-              <p style={{fontSize:'13px',color:'rgba(147,197,253,0.4)'}}>Sends all generated emails in batches of 50 via Resend</p>
-            </div>
-            <div style={{background:'rgba(251,191,36,0.07)',border:'1px solid rgba(251,191,36,0.2)',borderRadius:'14px',padding:'14px 18px',fontSize:'13px',color:'rgba(251,191,36,0.75)',marginBottom:'24px'}}>
-              Requires a Resend account with a verified sending domain. Free tier = 3,000 emails/month.
+              <p style={{fontSize:'13px',color:'rgba(147,197,253,0.4)'}}>Sends all generated emails in batches of 50</p>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px',marginBottom:'24px'}}>
               <div>
@@ -417,11 +530,10 @@ export default function Home() {
             )}
           </>}
 
-          {/* DASHBOARD */}
           {tab===5&&<>
             <div style={{marginBottom:'28px'}}>
               <h2 style={{fontSize:'18px',fontWeight:'600',letterSpacing:'-0.01em',marginBottom:'6px'}}>Dashboard</h2>
-              <p style={{fontSize:'13px',color:'rgba(147,197,253,0.4)'}}>Live stats from your Supabase database</p>
+              <p style={{fontSize:'13px',color:'rgba(147,197,253,0.4)'}}>Live stats from your Supabase database · Click any coach to view details</p>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'16px',marginBottom:'32px'}}>
               {[
@@ -437,21 +549,10 @@ export default function Home() {
             </div>
             <button onClick={fetchCoaches} style={{...btnGhost,marginBottom:'20px'}}>Refresh stats</button>
             <div style={{borderRadius:'16px',overflow:'hidden',border:'1px solid rgba(255,255,255,0.06)'}}>
-              <div style={{display:'grid',gridTemplateColumns:'2fr 2fr 1fr 1fr',padding:'12px 20px',background:'rgba(255,255,255,0.03)',fontSize:'11px',fontWeight:'600',color:'rgba(147,197,253,0.4)',textTransform:'uppercase',letterSpacing:'0.08em'}}>
-                <div>School</div><div>Coach</div><div>Division</div><div>Status</div>
+              <div style={{display:'grid',gridTemplateColumns:'2fr 2fr 1fr 80px 80px',padding:'12px 20px',background:'rgba(255,255,255,0.03)',fontSize:'11px',fontWeight:'600',color:'rgba(147,197,253,0.4)',textTransform:'uppercase',letterSpacing:'0.08em'}}>
+                <div>School</div><div>Coach</div><div>Division</div><div>Status</div><div style={{textAlign:'right'}}>Score</div>
               </div>
-              {coaches.slice(0,20).map(c=>(
-                <div key={c.id} style={{display:'grid',gridTemplateColumns:'2fr 2fr 1fr 1fr',padding:'14px 20px',borderTop:'1px solid rgba(255,255,255,0.04)'}}>
-                  <div style={{fontSize:'14px',fontWeight:'500',color:'rgba(255,255,255,0.8)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:'12px'}}>{c.school_name}</div>
-                  <div style={{fontSize:'13px',color:'rgba(255,255,255,0.4)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:'12px'}}>{c.coach_name}</div>
-                  <div style={{fontSize:'12px',color:'rgba(147,197,253,0.35)'}}>{c.division}</div>
-                  <div style={{display:'flex',gap:'6px',flexWrap:'wrap'}}>
-                    {c.email_generated&&<span style={{fontSize:'11px',padding:'3px 10px',borderRadius:'20px',background:'rgba(74,222,128,0.1)',color:'#4ade80',border:'1px solid rgba(74,222,128,0.2)',fontWeight:'500'}}>Generated</span>}
-                    {c.email_sent&&<span style={{fontSize:'11px',padding:'3px 10px',borderRadius:'20px',background:'rgba(168,85,247,0.1)',color:'#c084fc',border:'1px solid rgba(168,85,247,0.2)',fontWeight:'500'}}>Sent</span>}
-                    {!c.email_generated&&<span style={{fontSize:'11px',padding:'3px 10px',borderRadius:'20px',background:'rgba(255,255,255,0.04)',color:'rgba(255,255,255,0.25)'}}>Pending</span>}
-                  </div>
-                </div>
-              ))}
+              {coaches.slice(0,20).map(c=><CoachRow key={c.id} c={c} />)}
             </div>
           </>}
 
